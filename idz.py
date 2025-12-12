@@ -110,24 +110,26 @@ def iter_market_data(start="2015-01-01", end="2025-04-13"):
 def iter_log_returns(points):
     by_asset = {}
 
-    # групуємо по активу
+    # Групування по активу
     for p in points:
         by_asset.setdefault(p.asset, []).append(p)
 
-    # рахуємо log returns
+    # Функція вищого порядку. Обчислення доходів між парами
+    def apply_to_pairs(plist, func):
+        for i in range(1, len(plist)):
+            yield func(plist[i - 1], plist[i])
+
+    # log returns
     for asset, plist in by_asset.items():
         plist.sort(key=lambda x: x.date)
 
-        for i in range(1, len(plist)):
-            prev = plist[i - 1]
-            curr = plist[i]
-            
-            ratio = curr.close / prev.close
-            if ratio <= 0:
-                continue
-
-            ret = math.log(ratio)
-            yield ReturnPoint(asset=asset, date=curr.date, log_return=ret)
+        for ret_point in apply_to_pairs(plist, lambda prev, curr: ReturnPoint(
+            asset=curr.asset,
+            date=curr.date,
+            log_return=math.log(curr.close / prev.close) if curr.close / prev.close > 0 else 0
+        )):
+            if ret_point.log_return != 0:
+                yield ret_point
 
 def returns_to_dataframe(points):
     rows = [{
